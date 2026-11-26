@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>Orbit — Video Call</title>
+  <style>
+    :root { color-scheme: dark; --bg:#080d19; --panel:#111a2c; --line:#26344d; --muted:#9aa9c2; --accent:#7c9cff; }
+    * { box-sizing:border-box }
+    body { margin:0; min-height:100vh; background:radial-gradient(ellipse at 50% -15%,#1d2c50 0%,var(--bg) 55%); color:#f4f7ff; font:15px/1.45 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif; }
+    .shell { width:min(1120px,100%); margin:auto; padding:24px 20px 36px; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:24px; }
+    .brand { display:flex; align-items:center; gap:11px; font-size:19px; font-weight:750; letter-spacing:.2px }
+    .logo { display:grid; place-items:center; width:38px; height:38px; border-radius:13px; background:linear-gradient(135deg,#8ba7ff,#7255db); box-shadow:0 8px 30px #6f69e455; }
+    .logo svg { width:22px; height:22px }
+    .status { color:var(--muted); font-size:13px; display:flex; align-items:center; gap:8px }
+    .dot { width:8px;height:8px;border-radius:50%;background:#64748b }
+    .dot.live { background:#37d49a; box-shadow:0 0 12px #37d49a88 }
+    .intro { margin:28px 0 20px; }
+    h1 { margin:0 0 7px; font-size:clamp(26px,4vw,38px); letter-spacing:-1px }
+    .sub { margin:0; color:var(--muted) }
+    .join-panel { display:flex; flex-wrap:wrap; align-items:end; gap:10px; padding:16px; background:#111a2cdd; border:1px solid var(--line); border-radius:18px; margin-bottom:18px; }
+    .field { flex:1 1 220px; display:grid; gap:6px }
+    label { color:#b7c4d9; font-size:12px; font-weight:650; letter-spacing:.5px; text-transform:uppercase }
+    input { width:100%; min-width:0; padding:12px 13px; border:1px solid #33435f; border-radius:11px; outline:none; color:white; background:#0b1323; font:inherit; }
+    input:focus { border-color:var(--accent); box-shadow:0 0 0 3px #7c9cff22 }
+    button { border:0; border-radius:11px; padding:12px 16px; color:white; background:#263653; font:650 14px inherit; cursor:pointer; transition:.15s; }
+    button:hover { filter:brightness(1.15); transform:translateY(-1px) }
+    button:disabled { opacity:.45; cursor:not-allowed; transform:none }
+    .primary { background:linear-gradient(135deg,#7897ff,#7158d9); }
+    .danger { background:#8f3449 }
+    .videos { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+    .video-card { position:relative; overflow:hidden; min-height:250px; aspect-ratio:16/10; border:1px solid #293650; border-radius:18px; background:linear-gradient(145deg,#18243a,#0c1424); }
+    video { width:100%; height:100%; object-fit:cover; display:block; background:#080d19; }
+    #localVideo { transform:scaleX(-1) }
+    .video-label { position:absolute; left:13px; bottom:13px; padding:7px 10px; border-radius:9px; background:#07101dcc; backdrop-filter:blur(10px); font-size:12px; font-weight:650; }
+    .placeholder { position:absolute; inset:0; display:grid; place-content:center; justify-items:center; gap:9px; color:#8798b5; pointer-events:none; }
+    .avatar { width:58px;height:58px;border-radius:20px;display:grid;place-items:center;background:#273653;color:#dce6ff;font-size:22px;font-weight:750 }
+    .controls { display:flex; flex-wrap:wrap; justify-content:center; gap:10px; padding:18px 0 8px; }
+    .control { min-width:112px; display:flex; align-items:center; justify-content:center; gap:8px; }
+    .control.active { background:#273d68; }
+    .notice { min-height:24px; text-align:center; color:var(--muted); font-size:13px; margin:8px 0; }
+    .help { margin-top:24px; padding:17px 18px; border:1px solid var(--line); border-radius:16px; background:#0e1728aa; color:var(--muted); font-size:13px; }
+    .help strong { color:#e6edff }
+    .help p { margin:5px 0 }
+    @media(max-width:680px) { .shell{padding:17px 13px 28px} header{margin-bottom:18px}.videos{grid-template-columns:1fr}.video-card{min-height:220px}.join-panel{padding:13px} .status{font-size:11px} }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div class="brand">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><rect x="3" y="6" width="13" height="12" rx="3"/><path d="m16 10 5-3v10l-5-3z"/></svg>
+        </div>
+        Orbit <span style="color:#91a8ff;font-weight:500">Video</span>
+      </div>
+      <div class="status"><span id="statusDot" class="dot"></span><span id="connectionStatus">Not connected</span></div>
+    </header>
+
+    <section class="intro">
+      <h1>Face-to-face, anywhere.</h1>
+      <p class="sub">Private, peer-to-peer video calling in your browser.</p>
+    </section>
+
+    <section class="join-panel" aria-label="Join a call">
+      <div class="field">
+        <label for="roomInput">Room ID</label>
+        <input id="roomInput" maxlength="40" autocomplete="off" placeholder="Enter or create a room ID" />
+      </div>
+      <button id="createBtn" class="primary">Create room</button>
+      <button id="joinBtn">Join room</button>
+      <button id="copyBtn" disabled>Copy invite link</button>
+    </section>
+
+    <section class="videos" aria-label="Video call">
+      <div class="video-card">
+        <video id="localVideo" autoplay playsinline muted></video>
+        <div id="localPlaceholder" class="placeholder"><div class="avatar">You</div><span>Your camera preview</span></div>
+        <div class="video-label">You</div>
+      </div>
+      <div class="video-card">
+        <video id="remoteVideo" autoplay playsinline></video>
+        <div id="remotePlaceholder" class="placeholder"><div class="avatar">?</div><span>Waiting for the other person</span></div>
+        <div class="video-label">Remote participant</div>
+      </div>
+    </section>
+
+    <div class="controls">
+      <button id="micBtn" class="control" disabled>🎙 Mute</button>
+      <button id="cameraBtn" class="control" disabled>📷 Camera off</button>
+      <button id="hangupBtn" class="control danger" disabled>✕ Leave call</button>
+    </div>
+    <div id="notice" class="notice" role="status">Create a room or enter a room ID to join.</div>
+
+    <aside class="help">
+      <strong>How to use</strong>
+      <p>1. Deploy this app on an HTTPS website, then start the signaling server.</p>
+      <p>2. One person creates a room and shares the invite link. The other person opens it and joins.</p>
+      <p>3. Allow camera and microphone access when the browser asks.</p>
+      <p><strong>Note:</strong> This demo supports two participants per room. For reliable calls across restrictive networks, configure a TURN server.</p>
+    </aside>
+  </main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const roomInput = $('roomInput'), createBtn = $('createBtn'), joinBtn = $('joinBtn');
+  const copyBtn = $('copyBtn'), micBtn = $('micBtn'), cameraBtn = $('cameraBtn'), hangupBtn = $('hangupBtn');
+  const localVideo = $('localVideo'), remoteVideo = $('remoteVideo');
+  const localPlaceholder = $('localPlaceholder'), remotePlaceholder = $('remotePlaceholder');
+  const notice = $('notice'), connectionStatus = $('connectionStatus'), statusDot = $('statusDot');
+
+  let ws = null, pc = null, localStream = null, roomId = '';
+  let isInitiator = false, remoteReady = false, makingOffer = false;
+  let joined = false;
+
+  const setNotice = message => notice.textContent = message;
+  const setStatus = (message, live=false) => {
+    connectionStatus.textContent = message;
+    statusDot.classList.toggle('live', live);
+  };
+  const makeRoomId = () => Math.random().toString(36).slice(2, 8).toUpperCase();
+  // Replace this with your deployed Render Web Service URL.
+  // Example: wss://orbit-signaling.onrender.com
+  const SIGNALING_SERVER = 'wss://YOUR-RENDER-SERVICE.onrender.com';
+  const signalingUrl = () => SIGNALING_SERVER;
+
+  async function getMedia() {
+    if (localStream) return localStream;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('Camera access requires HTTPS or localhost in a supported browser.');
+    }
+    localStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true },
+      video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }
+    });
+    localVideo.srcObject = localStream;
+    localPlaceholder.hidden = true;
+    micBtn.disabled = cameraBtn.disabled = false;
+    return localStream;
+  }
+
+  function createPeerConnection() {
+    pc = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    });
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+    pc.ontrack = event => {
+      remoteVideo.srcObject = event.streams[0];
+      remotePlaceholder.hidden = true;
+    };
+    pc.onicecandidate = event => {
+      if (event.candidate) sendSignal({ type: 'ice', candidate: event.candidate });
+    };
+    pc.onconnectionstatechange = () => {
+      const state = pc?.connectionState;
+      if (state === 'connected') { setStatus('Connected', true); setNotice('You are connected. Enjoy your call!'); }
+      else if (state === 'connecting') setStatus('Connecting…');
+      else if (state === 'disconnected') { setStatus('Reconnecting…'); setNotice('Connection interrupted. Trying to reconnect…'); }
+      else if (state === 'failed') { setStatus('Connection failed'); setNotice('Connection failed. A TURN server may be required on this network.'); }
+    };
+  }
+
+  function sendSignal(payload) {
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
+  }
+
+  async function maybeOffer() {
+    if (!isInitiator || !remoteReady || !pc || makingOffer) return;
+    try {
+      makingOffer = true;
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      sendSignal({ type: 'offer', sdp: pc.localDescription });
+    } catch (error) {
+      console.error(error); setNotice('Could not start the call: ' + error.message);
+    } finally { makingOffer = false; }
+  }
+
+  async function handleSignal(message) {
+    if (message.type === 'peer-joined') {
+      setNotice('Someone joined. Preparing your call…');
+      if (localStream) { sendSignal({ type: 'ready' }); }
+    } else if (message.type === 'ready') {
+      remoteReady = true;
+      await maybeOffer();
+    } else if (message.type === 'offer') {
+      if (!pc) return;
+      await pc.setRemoteDescription(message.sdp);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      sendSignal({ type: 'answer', sdp: pc.localDescription });
+    } else if (message.type === 'answer') {
+      if (pc) await pc.setRemoteDescription(message.sdp);
+    } else if (message.type === 'ice') {
+      if (pc && message.candidate) {
+        try { await pc.addIceCandidate(message.candidate); }
+        catch (error) { console.warn('ICE candidate rejected', error); }
+      }
+    } else if (message.type === 'peer-left') {
+      remoteVideo.srcObject = null;
+      remotePlaceholder.hidden = false;
+      if (pc) { pc.close(); pc = null; }
+      remoteReady = false;
+      setStatus('Peer left');
+      setNotice('The other participant left. You can wait or leave the room.');
+    } else if (message.type === 'room-full') {
+      setNotice('This room already has two participants.');
+      cleanup(false);
+    } else if (message.type === 'error') {
+      setNotice(message.message || 'Signaling error.');
+      cleanup(false);
+    }
+  }
+
+  async function start(room, initiator) {
+    if (joined) cleanup(false);
+    roomId = room.trim().replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
+    if (!roomId) { setNotice('Please enter a valid room ID.'); return; }
+    isInitiator = initiator;
+    remoteReady = false;
+    setNotice('Requesting camera and microphone access…');
+    try {
+      await getMedia();
+      setNotice('Connecting to the signaling server…');
+      ws = new WebSocket(signalingUrl());
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'join', room: roomId }));
+        setStatus('In room · waiting');
+      };
+      ws.onmessage = async event => {
+        const message = JSON.parse(event.data);
+        if (message.type === 'created' || message.type === 'joined') {
+          joined = true;
+          roomInput.value = roomId;
+          copyBtn.disabled = false;
+          createBtn.disabled = joinBtn.disabled = true;
+          hangupBtn.disabled = false;
+          setNotice(message.type === 'created' ? 'Room created. Share the invite link with someone.' : 'Joined room. Waiting for the other participant…');
+          if (message.type === 'joined') {
+            createPeerConnection();
+            sendSignal({ type: 'ready' });
+          }
+        } else if (message.type === 'peer-joined') {
+          if (!pc && localStream) createPeerConnection();
+          await handleSignal(message);
+        } else {
+          await handleSignal(message);
+        }
+      };
+      ws.onerror = () => { setNotice('Could not connect to the signaling server. Is the server running?'); };
+      ws.onclose = () => { if (joined) setStatus('Signaling disconnected'); };
+    } catch (error) {
+      setNotice(error.name === 'NotAllowedError' ? 'Camera or microphone permission was denied.' : error.message);
+      cleanup(false);
+    }
+  }
+
+  function cleanup(stopMedia=true) {
+    if (pc) { pc.close(); pc = null; }
+    if (ws && ws.readyState < WebSocket.CLOSING) ws.close();
+    ws = null; joined = false; remoteReady = false; makingOffer = false;
+    remoteVideo.srcObject = null; remotePlaceholder.hidden = false;
+    if (stopMedia && localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      localStream = null; localVideo.srcObject = null; localPlaceholder.hidden = false;
+      micBtn.disabled = cameraBtn.disabled = true;
+      micBtn.textContent = '🎙 Mute'; cameraBtn.textContent = '📷 Camera off';
+    }
+    createBtn.disabled = joinBtn.disabled = false;
+    hangupBtn.disabled = true;
+    copyBtn.disabled = !roomId;
+    setStatus('Not connected');
+  }
+
+  createBtn.addEventListener('click', () => {
+    if (!roomInput.value.trim()) roomInput.value = makeRoomId();
+    start(roomInput.value, true);
+  });
+  joinBtn.addEventListener('click', () => start(roomInput.value, false));
+  copyBtn.addEventListener('click', async () => {
+    const url = new URL(location.href);
+    url.searchParams.set('room', roomId);
+    try {
+      await navigator.clipboard.writeText(url.toString());
+      setNotice('Invite link copied. Send it to the other participant.');
+    } catch { setNotice('Copy failed. Share this room ID: ' + roomId); }
+  });
+  micBtn.addEventListener('click', () => {
+    const track = localStream?.getAudioTracks()[0];
+    if (!track) return;
+    track.enabled = !track.enabled;
+    micBtn.textContent = track.enabled ? '🎙 Mute' : '🔇 Unmute';
+    micBtn.classList.toggle('active', !track.enabled);
+  });
+  cameraBtn.addEventListener('click', () => {
+    const track = localStream?.getVideoTracks()[0];
+    if (!track) return;
+    track.enabled = !track.enabled;
+    cameraBtn.textContent = track.enabled ? '📷 Camera off' : '🚫 Camera on';
+    cameraBtn.classList.toggle('active', !track.enabled);
+  });
+  hangupBtn.addEventListener('click', () => { cleanup(true); setNotice('You left the call.'); });
+
+  const initialRoom = new URLSearchParams(location.search).get('room');
+  if (initialRoom) roomInput.value = initialRoom;
+  window.addEventListener('beforeunload', () => {
+    try { ws?.send(JSON.stringify({ type: 'leave' })); } catch {}
+  });
+})();
+</script>
+</body>
+</html>
